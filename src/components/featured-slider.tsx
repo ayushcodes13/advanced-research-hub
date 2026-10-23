@@ -9,19 +9,37 @@ const DURATION = 9000;
 export function FeaturedSlider() {
   const [active, setActive] = useState(0);
   const [mounted, setMounted] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
+  const section = useRef<HTMLElement | null>(null);
   const videos = useRef<(HTMLVideoElement | null)[]>([]);
   useEffect(() => setMounted(true), []);
   useEffect(() => {
-    const v = videos.current[active];
-    if (v) { v.muted = true; v.play().catch(() => {}); }
-  }, [active, mounted]);
+    const element = section.current;
+    if (!element) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry) setIsVisible(entry.isIntersecting);
+    }, { rootMargin: "100px" });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+  useEffect(() => {
+    videos.current.forEach((video, index) => {
+      if (!video) return;
+      if (!isVisible || index !== active) {
+        video.pause();
+        return;
+      }
+      video.muted = true;
+      video.play().catch(() => {});
+    });
+  }, [active, isVisible, mounted]);
   useEffect(() => {
     const t = setTimeout(() => setActive((a) => (a + 1) % slides.length), DURATION);
     return () => clearTimeout(t);
   }, [active]);
 
   return (
-    <section className="feature-story feature-slider dark-section" aria-roledescription="carousel" aria-label="Featured technologies">
+    <section ref={section} className="feature-story feature-slider dark-section" aria-roledescription="carousel" aria-label="Featured technologies">
       <div className="feature-video" aria-hidden="true">
         {mounted && slides.map((s, i) => (
           <video
@@ -29,11 +47,10 @@ export function FeaturedSlider() {
             ref={(el) => { videos.current[i] = el; }}
             className={i === active ? "is-active" : ""}
             src={s.video}
-            autoPlay
             muted
             loop
             playsInline
-            preload={i === 0 ? "auto" : "metadata"}
+            preload="none"
             disablePictureInPicture
             disableRemotePlayback
             tabIndex={-1}
